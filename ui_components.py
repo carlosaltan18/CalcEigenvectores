@@ -24,8 +24,8 @@ def render_matrix_input(n: int) -> Optional[np.ndarray]:
             val = col.number_input(
                 f"a[{i+1},{j+1}]",
                 value=default_val,
-                step=1.0,
-                format="%.2f",
+                step=1,
+                format="%d",
                 label_visibility="collapsed",
                 key=f"cell_{n}_{i}_{j}"
             )
