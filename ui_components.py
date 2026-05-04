@@ -18,7 +18,7 @@ def render_matrix_input(n: int) -> Optional[np.ndarray]:
         cols = st.columns(n)
         row = []
         for j, col in enumerate(cols):
-            default_val = None
+            default_val = 0
             if example and i < len(example) and j < len(example[i]):
                 default_val = float(example[i][j])
             val = col.number_input(
