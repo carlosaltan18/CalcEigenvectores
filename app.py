@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st # type: ignore
 import numpy as np
 from eigen_solver import EigenSolver
 from ui_components import render_matrix_input, render_results, render_steps
@@ -14,13 +14,13 @@ st.markdown("""
     .main-title {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #1a1a2e;
+        color: #FFFFFF;
         text-align: center;
         margin-bottom: 0.2rem;
     }
     .subtitle {
         text-align: center;
-        color: #555;
+        color: #FFFFFF;
         font-size: 1rem;
         margin-bottom: 2rem;
     }
@@ -53,7 +53,7 @@ st.markdown("""
         font-family: monospace;
         font-size: 0.85rem;
         line-height: 1.8;
-    }
+    }    
 </style>
 """, unsafe_allow_html=True)
 

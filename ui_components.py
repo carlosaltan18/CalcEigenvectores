@@ -18,7 +18,7 @@ def render_matrix_input(n: int) -> Optional[np.ndarray]:
         cols = st.columns(n)
         row = []
         for j, col in enumerate(cols):
-            default_val = 0.0
+            default_val = None
             if example and i < len(example) and j < len(example[i]):
                 default_val = float(example[i][j])
             val = col.number_input(
@@ -32,7 +32,7 @@ def render_matrix_input(n: int) -> Optional[np.ndarray]:
             row.append(val)
         matrix.append(row)
 
-    return matrix
+    return [[0 if v is None else v for v in row] for row in matrix]
 
 
 def render_results(matrix, eigenvalues: np.ndarray, eigenvectors: np.ndarray, n: int):
