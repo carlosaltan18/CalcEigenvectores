@@ -98,53 +98,74 @@ def render_results(matrix, eigenvalues: np.ndarray, eigenvectors: np.ndarray, n:
     if n == 2 and len(eigenvalues) >= 1:
         st.markdown("---")
         st.markdown("### 📈 Visualización (2D)")
-        _plot_eigenvectors_2d(eigenvalues, eigenvectors)
+        _plot_eigenvectors_2d(eigenvalues, eigenvectors, A)
 
 
-def _plot_eigenvectors_2d(eigenvalues, eigenvectors):
-    """Plot eigenvectors in 2D space."""
+def _plot_eigenvectors_2d(eigenvalues, eigenvectors, matrix=None):
+    """Plot eigenvectors and their transformation A·v in 2D."""
     colors = ['#4a6cf7', '#f74a6c', '#4af7a0', '#f7c44a']
     fig = go.Figure()
 
-    # Origin
-    fig.add_trace(go.Scatter(x=[0], y=[0], mode='markers',
-                             marker=dict(size=10, color='black'), name='Origen'))
+    # Origen
+    fig.add_trace(go.Scatter(
+        x=[0], y=[0],
+        mode='markers',
+        marker=dict(size=10, color='black'),
+        name='Origen'
+    ))
 
     if len(eigenvectors.shape) == 2:
         for i in range(min(len(eigenvalues), eigenvectors.shape[1])):
-            vec = eigenvectors[:, i]
-            scale = 2.0
-            color = colors[i % len(colors)]
+            v = eigenvectors[:, i]
             lam = eigenvalues[i]
+            color = colors[i % len(colors)]
+            transformed_color = "green" if i == 0 else "yellow"
 
-            fig.add_annotation(
-                x=vec[0] * scale, y=vec[1] * scale,
-                ax=0, ay=0,
-                xref="x", yref="y", axref="x", ayref="y",
-                showarrow=True,
-                arrowhead=3,
-                arrowsize=1.5,
-                arrowwidth=3,
-                arrowcolor=color
-            )
+            # Vector original
             fig.add_trace(go.Scatter(
-                x=[vec[0] * scale], y=[vec[1] * scale],
-                mode='markers+text',
-                text=[f"v_{i+1} (λ={lam:.2f})"],
-                textposition="top center",
-                marker=dict(size=8, color=color),
-                name=f"v_{i+1}",
-                showlegend=True
+                x=[0, v[0]],
+                y=[0, v[1]],
+                mode='lines+markers',
+                line=dict(width=3, color=transformed_color),
+                name=f"v_{i+1}"
             ))
 
+            fig.add_annotation(
+                x=v[0], y=v[1],
+                text=f"v_{i+1} (λ={lam:.2f})",
+                showarrow=False,
+                font=dict(color=color)
+            )
+
+            # Vector transformado A·v
+            if matrix is not None:
+                Av = matrix @ v
+
+                fig.add_trace(go.Scatter(
+                    x=[0, Av[0]],
+                    y=[0, Av[1]],
+                    mode='lines+markers',
+                    line=dict(width=3, dash='dash', color=color),
+                    name=f"A·v_{i+1}"
+                ))
+
+                fig.add_annotation(
+                    x=Av[0], y=Av[1],
+                    text=f"A·v_{i+1}",
+                    showarrow=False,
+                    font=dict(color=transformed_color)
+                )
+
     fig.update_layout(
-        title="Eigenvectores en el plano 2D",
-        xaxis_title="x₁", yaxis_title="x₂",
+        title="Transformación Lineal: v vs A·v",
+        xaxis_title="x₁",
+        yaxis_title="x₂",
         xaxis=dict(zeroline=True, range=[-3, 3]),
         yaxis=dict(zeroline=True, range=[-3, 3], scaleanchor="x", scaleratio=1),
         height=400,
         plot_bgcolor='#f8f9fa'
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
 
