@@ -92,15 +92,7 @@ Output: Eigenvalores λ, Eigenvectores v<br><br>
     st.subheader(f"📝 Ingresa la Matriz {n}×{n}")
     matrix = render_matrix_input(n)
 
-    use_example = st.button("📌 Cargar ejemplo", use_container_width=True)
-    if use_example:
-        if n == 2:
-            st.session_state['example_matrix'] = [[4, 1], [2, 3]]
-        elif n == 3:
-            st.session_state['example_matrix'] = [[2, 1, 0], [1, 3, 1], [0, 1, 2]]
-        else:
-            st.session_state['example_matrix'] = [[1,2,0,0],[2,1,0,0],[0,0,3,1],[0,0,1,3]]
-        st.rerun()
+    
 
     calculate = st.button("🚀 Calcular Eigenvalores", type="primary", use_container_width=True)
 
@@ -109,13 +101,12 @@ with col_right:
         solver = EigenSolver(matrix)
         eigenvalues, eigenvectors, steps = solver.solve()
 
-        tab1, tab2 = st.tabs(["📊 Resultados", "🔍 Pasos del Algoritmo"])
+        tab1 = st.tabs(["📊 Resultados"])[0]
 
         with tab1:
             render_results(matrix, eigenvalues, eigenvectors, n)
 
-        with tab2:
-            render_steps(steps)
+        
     else:
         st.info("👈 Ingresa una matriz y presiona **Calcular Eigenvalores** para comenzar.")
         st.markdown("### ¿Qué son los Eigenvalores?")

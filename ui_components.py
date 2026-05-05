@@ -18,14 +18,14 @@ def render_matrix_input(n: int) -> Optional[np.ndarray]:
         cols = st.columns(n)
         row = []
         for j, col in enumerate(cols):
-            default_val = 0
+            default_val = 0.0
             if example and i < len(example) and j < len(example[i]):
                 default_val = float(example[i][j])
             val = col.number_input(
                 f"a[{i+1},{j+1}]",
                 value=default_val,
-                step=1,
-                format="%d",
+                step=1.0,
+                format="%.2f",
                 label_visibility="collapsed",
                 key=f"cell_{n}_{i}_{j}"
             )
