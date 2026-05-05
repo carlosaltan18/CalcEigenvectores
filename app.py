@@ -58,7 +58,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- NAVEGACIÓN ---
 st.sidebar.title("Navegación")
 st.sidebar.markdown("Elige una herramienta:")
 modo = st.sidebar.radio("", ["🧮 Calculadora de Eigenvalores", "🖼️ Compresor de Imágenes (PCA)"])

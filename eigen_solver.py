@@ -27,7 +27,7 @@ class EigenSolver:
         self.steps = []
         lam = symbols('lambda')
 
-        # Step 1: Build identity matrix
+        #Build identity matrix
         I = Matrix.eye(self.n)
         self.steps.append({
             "step": 1,
@@ -37,7 +37,7 @@ class EigenSolver:
             "latex": f"I_{{{self.n}}} = \\text{{eye}}({self.n})"
         })
 
-        # Step 2: Compute B = A - λI
+        # Compute B = A - λI
         B = self.A_sympy - lam * I
         self.steps.append({
             "step": 2,
@@ -48,7 +48,7 @@ class EigenSolver:
             "matrix": B
         })
 
-        # Step 3: Compute det(B)
+        # Compute det(B)
         char_poly = det(B)
         char_poly_simplified = simplify(char_poly)
         self.steps.append({
@@ -59,7 +59,7 @@ class EigenSolver:
             "latex": f"\\det(A - \\lambda I) = {latex(char_poly_simplified)}"
         })
 
-        # Step 4: Solve det(A - λI) = 0
+        #Solve det(A - λI) = 0
         eigenvalues_sympy = solve(char_poly_simplified, lam)
         self.steps.append({
             "step": 4,
@@ -69,25 +69,25 @@ class EigenSolver:
             "latex": f"\\lambda = {', '.join([latex(simplify(ev)) for ev in eigenvalues_sympy])}"
         })
 
-        # Step 5: Get eigenvalues as floats
+        #Get eigenvalues as floats
         eigenvalues_float = [complex(ev) for ev in eigenvalues_sympy]
 
-        # Steps 6-15: For each eigenvalue, find eigenvector
+        #For each eigenvalue, find eigenvector
         all_eigenvalues = []
         all_eigenvectors = []
 
         for i, (ev_sympy, ev_float) in enumerate(zip(eigenvalues_sympy, eigenvalues_float)):
             ev_real = float(ev_float.real)
 
-            # Step 7: C = A - λI
+            # C = A - λI
             C = self.A_sympy - ev_sympy * I
             C_simplified = C.applyfunc(simplify)
 
-            # Step 8: Solve C·v = 0 (null space)
+            # Solve C·v = 0 (null space)
             try:
                 null_space = C_simplified.nullspace()
                 if null_space:
-                    # Step 10-11: Non-trivial solution exists
+                    # Non-trivial solution exists
                     evec_sympy = null_space[0]
                     evec_float = np.array([float(simplify(x)) for x in evec_sympy])
 
@@ -110,7 +110,7 @@ class EigenSolver:
                     all_eigenvalues.append(ev_real)
                     all_eigenvectors.append(evec_normalized)
                 else:
-                    # Step 12-13: No non-trivial solution
+                    #No non-trivial solution
                     self.steps.append({
                         "step": f"6-13 (λ_{i+1})",
                         "title": f"λ = {ev_real:.4f} — sin eigenvector no trivial",
