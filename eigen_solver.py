@@ -1,5 +1,6 @@
 import numpy as np
-from sympy import symbols, det, Matrix, solve, simplify, latex, Rational, nsimplify
+import plotly.graph_objects as go
+from sympy import symbols, det, Matrix, solve, simplify, latex, nsimplify
 from typing import Tuple, List, Dict
 
 
@@ -11,7 +12,7 @@ class EigenSolver:
 
     def __init__(self, matrix: List[List[float]]):
         self.A_numeric = np.array(matrix, dtype=float)
-        self.A_sympy = Matrix([[Rational(int(x * 1000), 1000) for x in row] for row in matrix])
+        self.A_sympy = Matrix([[nsimplify(x) for x in row] for row in matrix])
         self.n = len(matrix)
         self.steps: List[Dict] = []
 
@@ -76,6 +77,8 @@ class EigenSolver:
         all_eigenvalues = []
         all_eigenvectors = []
 
+        pairs = []
+
         for i, (ev_sympy, ev_float) in enumerate(zip(eigenvalues_sympy, eigenvalues_float)):
             ev_real = float(ev_float.real)
 
@@ -106,9 +109,8 @@ class EigenSolver:
                         "latex": f"v_{{{i+1}}} = {latex(evec_sympy)}",
                         "found": True
                     })
-
-                    all_eigenvalues.append(ev_real)
-                    all_eigenvectors.append(evec_normalized)
+                    pairs.append((ev_real, evec_normalized))
+                    
                 else:
                     #No non-trivial solution
                     self.steps.append({
@@ -126,6 +128,10 @@ class EigenSolver:
                     "formula": "",
                     "found": False
                 })
+        pairs.sort(key=lambda x: x[0])
+
+        all_eigenvalues = [p[0] for p in pairs]
+        all_eigenvectors = [p[1] for p in pairs]
 
         self.steps.append({
             "step": 16,
