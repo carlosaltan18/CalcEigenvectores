@@ -5,6 +5,7 @@ from __future__ import annotations
 from io import BytesIO, StringIO
 from hashlib import sha256
 from base64 import b64encode
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
@@ -25,52 +26,73 @@ st.set_page_config(page_title="Álgebra Visual", page_icon="◈", layout="wide",
 
 
 def inject_styles() -> None:
-    st.markdown(
-        """
+    hero_asset = Path(__file__).with_name("assets") / "algebra-hero.png"
+    hero_image = ""
+    if hero_asset.exists():
+        hero_image = "url('data:image/png;base64," + b64encode(hero_asset.read_bytes()).decode("ascii") + "')"
+    styles = """
         <style>
-        :root { --ink: #0f172a; --muted: #475569; --violet: #6d28d9; --cyan: #0e7490; }
-        .stApp, [data-testid="stAppViewContainer"] { background: radial-gradient(circle at 10% -10%, #e9ddff 0, transparent 32rem), #f8fafc; color: var(--ink); color-scheme: light; }
-        [data-testid="stMain"] { color: var(--ink); }
-        section[data-testid="stSidebar"] { background: #111b34; }
-        section[data-testid="stSidebar"] * { color: #e8efff; }
-        section[data-testid="stSidebar"] .stRadio label { padding: .35rem 0; }
-        .block-container { max-width: 1360px; padding-top: 2rem; padding-bottom: 3rem; }
-        .hero { background: linear-gradient(115deg, #172554 0%, #4c1d95 55%, #0e7490 100%); border-radius: 24px; padding: 2.15rem 2.35rem; color: white; box-shadow: 0 18px 38px rgba(49, 46, 129, .22); margin-bottom: 1.5rem; }
-        .hero-kicker, .section-kicker { font-size: .74rem; font-weight: 800; letter-spacing: .12em; }
-        .hero-kicker { color: #c4b5fd; margin-bottom: .5rem; }
-        .section-kicker { color: #7c3aed; margin-top: .8rem; }
-        .hero h1 { color: white; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.08; margin: 0 0 .55rem; }
-        .hero p { max-width: 760px; color: #e0e7ff; font-size: 1.06rem; margin: 0; }
-        .matrix-label { color: #64748b; font-size: .84rem; font-weight: 800; text-align: center; padding-top: .6rem; }
-        .status-badge { display: inline-block; padding: .35rem .65rem; background: #eef2ff; border: 1px solid #dbeafe; border-radius: 999px; color: #3730a3; font-size: .82rem; font-weight: 650; margin: 0 .35rem .65rem 0; }
-        .eigen-card { background: linear-gradient(135deg, #f5f3ff, #ecfeff); border: 1px solid #ddd6fe; border-radius: 12px; padding: .75rem .8rem; color: #312e81; }
-        .eigen-card span { color: #64748b; font-size: .8rem; }
-        div[data-testid="stMetric"] { background: #ffffff; border: 1px solid #dbe3ef; border-radius: 14px; padding: .6rem .8rem; box-shadow: 0 3px 12px rgba(15, 23, 42, .04); }
-        [data-testid="stMain"] [data-testid="stMetricLabel"], [data-testid="stMain"] [data-testid="stMetricLabel"] *, [data-testid="stMain"] [data-testid="stMetricDelta"] { color: #475569 !important; }
-        [data-testid="stMain"] [data-testid="stMetricValue"], [data-testid="stMain"] [data-testid="stMetricValue"] * { color: #0f172a !important; }
-        [data-testid="stMain"] label, [data-testid="stMain"] label p, [data-testid="stMain"] [data-testid="stWidgetLabel"], [data-testid="stMain"] [data-testid="stWidgetLabel"] p, [data-testid="stMain"] .stCaption, [data-testid="stMain"] .stCaption p { color: #334155 !important; font-weight: 600; }
-        [data-testid="stMain"] input, [data-testid="stMain"] textarea { color: #0f172a !important; caret-color: #0f172a !important; }
-        [data-testid="stMain"] [data-baseweb="input"], [data-testid="stMain"] [data-baseweb="textarea"] { background: #ffffff !important; border-color: #cbd5e1 !important; }
-        [data-testid="stMain"] [data-baseweb="textarea"] textarea { background: transparent !important; color: #0f172a !important; }
-        [data-testid="stMain"] [data-baseweb="slider"] div { color: #334155; }
-        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] { background: #ffffff !important; border: 1px dashed #94a3b8 !important; }
-        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color: #334155 !important; }
-        [data-testid="stMain"] [data-testid="stFileUploader"] small { color: #64748b !important; }
-        .tip-box { background: #eff6ff; border-left: 4px solid #0ea5e9; padding: .8rem 1rem; border-radius: 0 10px 10px 0; color: #1e3a5f; }
-        .footer-note { color: #64748b; font-size: .85rem; text-align: center; padding-top: 1.5rem; }
-        div[data-testid="stExpander"] { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }
-        .stButton > button, .stDownloadButton > button { border-radius: 10px; font-weight: 650; }
-        [data-testid="stMain"] [role="tab"] { color: #334155 !important; font-weight: 650; }
-        [data-testid="stMain"] [role="tab"][aria-selected="true"] { color: #5b21b6 !important; }
+        :root { --void:#080a0c; --carbon:#111518; --panel:#151a1e; --panel-2:#1a2025; --line:#343b42; --ink:#f4f0e9; --muted:#a8afb5; --ember:#ff8a1f; --signal:#f04b2b; --cyan:#75bbc7; }
+        .stApp, [data-testid="stAppViewContainer"] { background: radial-gradient(circle at 78% -12%, rgba(190,65,20,.2), transparent 34rem), linear-gradient(115deg, rgba(255,138,31,.045), transparent 38%), var(--void); color:var(--ink); color-scheme:dark; }
+        [data-testid="stMain"] { color:var(--ink); }
+        [data-testid="stMainBlockContainer"], .block-container { max-width:1440px; padding-top:2.4rem; padding-bottom:3.5rem; }
+        section[data-testid="stSidebar"] { background:linear-gradient(180deg,#171b1e,#0a0c0e 70%); border-right:1px solid var(--line); }
+        section[data-testid="stSidebar"] * { color:var(--ink); }
+        section[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding-top:1.15rem; }
+        section[data-testid="stSidebar"] .stRadio label { padding:.48rem .7rem; border-left:2px solid transparent; transition:.18s ease; }
+        section[data-testid="stSidebar"] .stRadio label:hover { background:rgba(255,138,31,.09); border-left-color:var(--ember); }
+        .hero { position:relative; overflow:hidden; min-height:220px; padding:2.45rem 2.6rem; border:1px solid rgba(255,179,76,.32); border-radius:4px; background-image:linear-gradient(90deg,rgba(6,8,10,.97) 0%,rgba(6,8,10,.91) 39%,rgba(6,8,10,.23) 100%),_HERO_IMAGE_; background-position:center,right center; background-size:cover,cover; box-shadow:0 25px 70px rgba(0,0,0,.35); margin-bottom:1.7rem; }
+        .hero::after { content:""; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.022) 3px 4px); mix-blend-mode:screen; }
+        .hero > * { position:relative; z-index:1; }
+        .hero-kicker, .section-kicker { font-family:"Courier New",monospace; font-size:.72rem; font-weight:800; letter-spacing:.18em; text-transform:uppercase; }
+        .hero-kicker { color:var(--ember); margin-bottom:.7rem; }
+        .section-kicker { color:var(--ember); margin-top:.8rem; }
+        .hero h1 { max-width:670px; color:var(--ink); font-size:clamp(2.15rem,4vw,3.65rem); font-weight:800; letter-spacing:-.04em; line-height:1; margin:0 0 .7rem; }
+        .hero p { max-width:700px; color:#d4d0c8; font-size:1.06rem; margin:0; }
+        .hero-signals { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1.35rem; }.hero-signals span { padding:.34rem .52rem; border:1px solid rgba(255,180,81,.38); color:#f0c28f; background:rgba(8,10,12,.42); font:700 .67rem "Courier New",monospace; letter-spacing:.09em; }
+        .system-bar { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:0 0 .9rem; padding:.62rem .82rem; border:1px solid #394149; background:rgba(21,26,30,.76); }.system-title { display:flex; align-items:center; gap:.55rem; color:#f1ece2; font:700 .72rem "Courier New",monospace; letter-spacing:.13em; }.system-title::before { content:""; width:7px; height:7px; border-radius:50%; background:#ff8a1f; box-shadow:0 0 12px #ff8a1f; }.system-tags { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.38rem; }.system-tags span { border-left:1px solid #59616a; padding-left:.42rem; color:#9fa8af; font:700 .65rem "Courier New",monospace; letter-spacing:.06em; }
+        .brand-lockup { margin:-.25rem 0 1.5rem; padding:0 0 1rem; border-bottom:1px solid #3a4249; }.brand-lockup .brand-mark { color:var(--ember); font:800 .72rem "Courier New",monospace; letter-spacing:.2em; }.brand-lockup h2 { margin:.42rem 0 .35rem; font-size:1.55rem; }.brand-lockup p { margin:0; color:#a8afb5; font-size:.82rem; line-height:1.45; }
+        h1,h2,h3 { color:var(--ink) !important; letter-spacing:-.02em; } p,li { color:#d0d4d6; }
+        .matrix-label { color:var(--ember); font-family:"Courier New",monospace; font-size:.84rem; font-weight:800; text-align:center; padding-top:.6rem; }
+        .status-badge { display:inline-block; padding:.35rem .65rem; border:1px solid #4c535a; border-radius:2px; color:#e9e5dc; font-family:"Courier New",monospace; font-size:.78rem; font-weight:700; margin:0 .35rem .65rem 0; background:#1b2024; }
+        .eigen-card { background:linear-gradient(135deg,#1a1f23,#111416); border-left:3px solid var(--ember); border-radius:2px; padding:.85rem .9rem; color:var(--ink); }.eigen-card span { color:var(--muted); font-size:.8rem; }
+        div[data-testid="stMetric"] { background:linear-gradient(135deg,#1b2024,#121619); border:1px solid #363e45; border-radius:3px; padding:.7rem .85rem; box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 10px 24px rgba(0,0,0,.16); }
+        [data-testid="stMain"] [data-testid="stMetricLabel"], [data-testid="stMain"] [data-testid="stMetricLabel"] *, [data-testid="stMain"] [data-testid="stMetricDelta"] { color:var(--muted) !important; font-family:"Courier New",monospace; font-size:.74rem !important; letter-spacing:.055em; text-transform:uppercase; }
+        [data-testid="stMain"] [data-testid="stMetricValue"], [data-testid="stMain"] [data-testid="stMetricValue"] * { color:var(--ember) !important; }
+        [data-testid="stMain"] label, [data-testid="stMain"] label p, [data-testid="stMain"] [data-testid="stWidgetLabel"], [data-testid="stMain"] [data-testid="stWidgetLabel"] p, [data-testid="stMain"] .stCaption, [data-testid="stMain"] .stCaption p { color:#d7dbdc !important; font-weight:650; }
+        [data-testid="stMain"] input, [data-testid="stMain"] textarea { color:var(--ink) !important; caret-color:var(--ember) !important; }
+        [data-testid="stMain"] [data-baseweb="input"], [data-testid="stMain"] [data-baseweb="textarea"], [data-testid="stMain"] [data-baseweb="select"] > div { background:#111518 !important; border-color:#454d54 !important; border-radius:2px !important; }
+        [data-testid="stMain"] [data-baseweb="textarea"] textarea { background:transparent !important; color:var(--ink) !important; }
+        [data-testid="stMain"] [data-baseweb="slider"] div { color:var(--muted); }
+        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] { background:#111518 !important; border:1px dashed #757e84 !important; border-radius:2px !important; }
+        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color:#d7dbdc !important; }
+        [data-testid="stMain"] [data-testid="stFileUploader"] small { color:var(--muted) !important; }
+        .tip-box { background:rgba(255,138,31,.08); border-left:3px solid var(--ember); padding:.9rem 1rem; border-radius:0; color:#e7e1d7; }
+        .footer-note { color:#868f96; font-family:"Courier New",monospace; font-size:.75rem; letter-spacing:.08em; text-align:center; padding-top:1.8rem; }
+        div[data-testid="stExpander"] { background:#13181b; border:1px solid #3a4249; border-radius:2px; } [data-testid="stExpander"] summary { color:var(--ink); }
+        .stButton > button, .stDownloadButton > button { border:1px solid var(--ember); border-radius:2px; color:#f9f5ed; background:transparent; font-family:"Courier New",monospace; font-weight:700; letter-spacing:.04em; transition:.18s ease; }.stButton > button:hover, .stDownloadButton > button:hover { color:#111; background:var(--ember); border-color:var(--ember); }
+        .stButton > button[kind="primary"] { background:var(--signal); border-color:var(--signal); }.stButton > button[kind="primary"]:hover { background:#ff6a41; border-color:#ff6a41; }
+        [data-testid="stMain"] [role="tab"] { color:#aeb5ba !important; font-family:"Courier New",monospace; font-weight:700; letter-spacing:.04em; } [data-testid="stMain"] [role="tab"][aria-selected="true"] { color:var(--ember) !important; }
+        [data-testid="stMain"] [data-testid="stDataFrame"], [data-testid="stMain"] [data-testid="stTable"] { border:1px solid #394149; }
+        [data-testid="stMain"] .stAlert { background:#1a2024; border:1px solid #48515a; border-radius:2px; color:var(--ink); }
+        @media (max-width:700px) { .hero { min-height:190px; padding:1.7rem; background-position:58% center,right center; }.hero h1 { font-size:2.2rem; }.block-container { padding-top:1.4rem; }.system-bar { align-items:flex-start; flex-direction:column; }.system-tags { justify-content:flex-start; } }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    st.markdown(styles.replace("_HERO_IMAGE_", hero_image or "none"), unsafe_allow_html=True)
 
 
 def render_hero(kicker: str, title: str, description: str) -> None:
     st.markdown(
-        f"""<div class='hero'><div class='hero-kicker'>{kicker}</div><h1>{title}</h1><p>{description}</p></div>""",
+        f"""<div class='hero'><div class='hero-kicker'>{kicker}</div><h1>{title}</h1><p>{description}</p><div class='hero-signals'><span>● SISTEMA ACTIVO</span><span>ÁLGEBRA LINEAL</span><span>ANÁLISIS VISUAL</span></div></div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def render_system_bar(module: str, *tags: str) -> None:
+    """Renderiza una barra de estado visual reutilizable para cada laboratorio."""
+    tag_html = "".join(f"<span>{tag}</span>" for tag in tags)
+    st.markdown(
+        f"<div class='system-bar'><div class='system-title'>{module}</div><div class='system-tags'>{tag_html}</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -98,6 +120,7 @@ def matrix_examples(size: int) -> dict[str, np.ndarray]:
 
 
 def render_spectral_calculator() -> None:
+    render_system_bar("MÓDULO 01 · ESPECTRAL", "MATRICES", "ESPACIOS PROPIOS", "DIAGNÓSTICO")
     render_hero(
         "LABORATORIO ESPECTRAL",
         "Entiende la matriz, no solo el resultado.",
@@ -200,17 +223,18 @@ def load_uploaded_csv(uploaded_file) -> Tuple[np.ndarray, List[str], int]:
 def render_scree_plot(explained_ratio: np.ndarray) -> None:
     positions = list(range(1, len(explained_ratio) + 1))
     figure = go.Figure()
-    figure.add_trace(go.Bar(x=positions, y=explained_ratio * 100, marker_color="#7c3aed", name="Individual"))
-    figure.add_trace(go.Scatter(x=positions, y=np.cumsum(explained_ratio) * 100, mode="lines+markers", line={"color": "#0891b2", "width": 3}, name="Acumulada"))
+    figure.add_trace(go.Bar(x=positions, y=explained_ratio * 100, marker_color="#f04b2b", name="Individual"))
+    figure.add_trace(go.Scatter(x=positions, y=np.cumsum(explained_ratio) * 100, mode="lines+markers", line={"color": "#ff9c35", "width": 3}, name="Acumulada"))
     figure.update_layout(
-        height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff",
-        template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"},
-        xaxis_title="Componente principal", yaxis_title="Varianza explicada (%)", yaxis={"range": [0, 105], "gridcolor": "#e2e8f0"}, legend={"orientation": "h", "y": 1.12},
+        height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#14191d",
+        template="plotly_dark", font={"color": "#e8e5dd", "family": "Arial, sans-serif"},
+        xaxis_title="Componente principal", yaxis_title="Varianza explicada (%)", yaxis={"range": [0, 105], "gridcolor": "#394149"}, legend={"orientation": "h", "y": 1.12},
     )
     st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 
 
 def render_pca_lab() -> None:
+    render_system_bar("MÓDULO 02 · PCA", "DATOS", "COVARIANZA", "PROYECCIÓN")
     render_hero(
         "PCA INTERACTIVO",
         "Reduce dimensiones y conserva la señal.",
@@ -287,23 +311,23 @@ def render_pca_lab() -> None:
                 figure = go.Figure(
                     go.Scatter3d(
                         x=scores[:, 0], y=scores[:, 1], z=scores[:, 2], mode="markers",
-                        marker={"color": "#7c3aed", "size": 5, "opacity": .78},
+                        marker={"color": "#ff8a1f", "size": 5, "opacity": .78},
                         text=[f"Observación {index + 1}" for index in range(len(scores))],
                     )
                 )
                 figure.update_layout(
                     height=330, margin={"l": 0, "r": 0, "t": 25, "b": 0}, paper_bgcolor="rgba(0,0,0,0)",
-                    template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"},
+                    template="plotly_dark", font={"color": "#e8e5dd", "family": "Arial, sans-serif"},
                     scene={"xaxis_title": "PC1", "yaxis_title": "PC2", "zaxis_title": "PC3"},
                 )
             elif scores.shape[1] >= 2:
-                figure = go.Figure(go.Scatter(x=scores[:, 0], y=scores[:, 1], mode="markers", marker={"color": "#7c3aed", "size": 9, "opacity": .78}, text=[f"Observación {index + 1}" for index in range(len(scores))]))
+                figure = go.Figure(go.Scatter(x=scores[:, 0], y=scores[:, 1], mode="markers", marker={"color": "#ff8a1f", "size": 9, "opacity": .78}, text=[f"Observación {index + 1}" for index in range(len(scores))]))
                 x_title, y_title = "PC1", "PC2"
             else:
-                figure = go.Figure(go.Scatter(x=np.arange(1, len(scores) + 1), y=scores[:, 0], mode="markers", marker={"color": "#7c3aed", "size": 9, "opacity": .78}))
+                figure = go.Figure(go.Scatter(x=np.arange(1, len(scores) + 1), y=scores[:, 0], mode="markers", marker={"color": "#ff8a1f", "size": 9, "opacity": .78}))
                 x_title, y_title = "Observación", "PC1"
             if projection_view != "3D":
-                figure.update_layout(height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff", template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"}, xaxis_title=x_title, yaxis_title=y_title)
+                figure.update_layout(height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#14191d", template="plotly_dark", font={"color": "#e8e5dd", "family": "Arial, sans-serif"}, xaxis_title=x_title, yaxis_title=y_title)
             st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 
         data_tab, covariance_tab, components_tab = st.tabs(["Datos", "Covarianza", "Componentes"])
@@ -311,8 +335,8 @@ def render_pca_lab() -> None:
             st.dataframe(pd.DataFrame(data, columns=labels).round(3), width="stretch", hide_index=True, height=250)
         with covariance_tab:
             covariance = result["covariance"]
-            heatmap = go.Figure(go.Heatmap(z=covariance, x=labels, y=labels, colorscale="PuBu", zmid=0, colorbar={"title": "Cov."}))
-            heatmap.update_layout(height=360, margin={"l": 10, "r": 10, "t": 15, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"})
+            heatmap = go.Figure(go.Heatmap(z=covariance, x=labels, y=labels, colorscale=[[0, "#1b2730"], [.5, "#d2c3a1"], [1, "#f04b2b"]], zmid=0, colorbar={"title": "Cov."}))
+            heatmap.update_layout(height=360, margin={"l": 10, "r": 10, "t": 15, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", template="plotly_dark", font={"color": "#e8e5dd", "family": "Arial, sans-serif"})
             st.plotly_chart(heatmap, width="stretch", config={"displayModeBar": False})
         with components_tab:
             loading_data = {f"PC{index + 1}": result["components"][:, index] for index in range(components)}
@@ -343,6 +367,7 @@ def result_png(result: dict) -> bytes:
 
 
 def render_image_compressor() -> None:
+    render_system_bar("MÓDULO 03 · IMAGEN", "RGB", "RANGO k", "PCA / SVD")
     render_hero("PCA · SVD", "Reducción y reconstrucción RGB", "Explora el detalle que conserva cada método.")
     uploaded_file = st.file_uploader("Sube una imagen PNG o JPG", type=["png", "jpg", "jpeg"], help="Se reconstruyen los tres canales RGB; los colores y detalles pueden variar.")
     if uploaded_file is None:
@@ -417,8 +442,7 @@ def render_image_compressor() -> None:
 
 
 inject_styles()
-st.sidebar.markdown("## ◈ Álgebra Visual")
-st.sidebar.caption("Un laboratorio para explorar matrices, espacios propios y PCA.")
+st.sidebar.markdown("<div class='brand-lockup'><div class='brand-mark'>◈ SISTEMA DE ANÁLISIS</div><h2>Álgebra Visual</h2><p>Un laboratorio para explorar matrices, espacios propios y PCA.</p></div>", unsafe_allow_html=True)
 mode = st.sidebar.radio("Navegación", ["Calculadora espectral", "Laboratorio PCA", "Compresor de imágenes"])
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Ruta de aprendizaje**")

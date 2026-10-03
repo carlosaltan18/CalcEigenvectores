@@ -152,7 +152,7 @@ def render_results(matrix: List[List[float]], eigenvalues: np.ndarray, eigenvect
 def _plot_eigenvectors_2d(eigenvalues: np.ndarray, eigenvectors: np.ndarray, matrix: np.ndarray) -> None:
     """Visualiza v y Av con límites que se ajustan a los datos."""
     figure = go.Figure()
-    colors = ["#7c3aed", "#06b6d4", "#f59e0b", "#ef4444"]
+    colors = ["#ff8a1f", "#75bbc7", "#f04b2b", "#e8e5dd"]
     endpoints: List[float] = [1.0]
 
     for index in range(eigenvectors.shape[1]):
@@ -178,12 +178,12 @@ def _plot_eigenvectors_2d(eigenvalues: np.ndarray, eigenvectors: np.ndarray, mat
         height=390,
         margin={"l": 10, "r": 10, "t": 25, "b": 10},
         legend={"orientation": "h", "y": 1.08},
-        template="plotly_white",
-        font={"color": "#0f172a", "family": "Arial, sans-serif"},
+        template="plotly_dark",
+        font={"color": "#e8e5dd", "family": "Arial, sans-serif"},
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#f8fafc",
-        xaxis={"title": "x₁", "range": [-limit, limit], "zeroline": True, "gridcolor": "#e2e8f0"},
-        yaxis={"title": "x₂", "range": [-limit, limit], "zeroline": True, "scaleanchor": "x", "scaleratio": 1, "gridcolor": "#e2e8f0"},
+        plot_bgcolor="#14191d",
+        xaxis={"title": "x₁", "range": [-limit, limit], "zeroline": True, "gridcolor": "#394149"},
+        yaxis={"title": "x₂", "range": [-limit, limit], "zeroline": True, "scaleanchor": "x", "scaleratio": 1, "gridcolor": "#394149"},
     )
     st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 
