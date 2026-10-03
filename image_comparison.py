@@ -49,7 +49,9 @@ def png_url(image: np.ndarray) -> str:
 
 def comparison_html(original: np.ndarray, reconstructed: np.ndarray, method: str, k: int, state_key: str, left_label: str = "Original", original_url: str | None = None, reconstructed_url: str | None = None) -> str:
     original, reconstructed = aligned_pair(original, reconstructed)
-    template = Path(__file__).with_name("image_comparison.html").read_text()
+    # The inspector template contains Spanish accents.  On Windows, relying on the
+    # system default encoding can decode UTF-8 bytes as cp1252 ("ó" → "Ã³").
+    template = Path(__file__).with_name("image_comparison.html").read_text(encoding="utf-8")
     difference = difference_map(original, reconstructed)
     values = {
         "LEFT": original_url or png_url(original), "RIGHT": reconstructed_url or png_url(reconstructed),
