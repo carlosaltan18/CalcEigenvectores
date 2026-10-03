@@ -1,1 +1,11 @@
+# Python bytecode and local environments
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local test and lint artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/

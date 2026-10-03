@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 from io import BytesIO, StringIO
+from hashlib import sha256
+from base64 import b64encode
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps
+
+from image_comparison import comparison_html, render_comparison_html, png_url
+from image_compression import ImageWorkspace, preview_image
 
 from eigen_solver import EigenSolver
-from pca_tools import color_image_pca, color_image_svd, fit_pca
+from pca_tools import fit_pca
 from ui_components import format_number, load_matrix, render_matrix_input, render_results, render_steps
 
 
@@ -322,95 +327,93 @@ def image_to_bytes(image_array: np.ndarray) -> bytes:
     return buffer.getvalue()
 
 
-@st.cache_data(show_spinner=False)
-def compress_rgb_with_pca(image_array: np.ndarray, components: int):
-    return color_image_pca(image_array, components)
-
-
-@st.cache_data(show_spinner=False)
-def compress_rgb_with_svd(image_array: np.ndarray, components: int):
-    return color_image_svd(image_array, components)
-
-
-def render_color_result(original: np.ndarray, result: dict, method: str, components: int) -> None:
-    """Muestra la comparación visual que hace comprensible la compresión."""
+def render_image_metrics(result: dict, method: str) -> None:
     metrics = st.columns(4)
-    metrics[0].metric("Energía retenida", f"{result['retained_variance'] * 100:.2f}%")
+    metrics[0].metric("Varianza retenida" if method == "PCA" else "Energía retenida", f"{result['retained_variance'] * 100:.2f}%")
     metrics[1].metric("Error MSE", f"{result['mse']:.2f}")
     metrics[2].metric("PSNR", "∞" if np.isinf(result["psnr"]) else f"{result['psnr']:.2f} dB")
     metrics[3].metric("Datos del modelo", f"{result['storage_ratio']:.1f}%")
 
-    original_column, reconstructed_column, difference_column = st.columns(3)
-    with original_column:
-        st.image(original, caption="Original RGB", width="stretch")
-    with reconstructed_column:
-        st.image(result["reconstructed_image"], caption=f"Reconstrucción {method} · k={components}", width="stretch")
-    with difference_column:
-        st.image(result["difference_image"], caption="Diferencia absoluta × 4", width="stretch")
 
-    st.download_button(
-        f"Descargar reconstrucción {method}",
-        data=image_to_bytes(result["reconstructed_image"]),
-        file_name=f"{method.lower()}_rgb_k{components}.png",
-        mime="image/png",
-        width="stretch",
-    )
+def result_png(result: dict) -> bytes:
+    """Reuse the current reconstruction encoding for display and download."""
+    if "png" not in result:
+        result["png"] = image_to_bytes(result["reconstructed_image"])
+    return result["png"]
 
 
 def render_image_compressor() -> None:
-    render_hero(
-        "PCA, SVD Y VISIÓN POR COMPUTADORA",
-        "Comprime imágenes RGB sin perder el color.",
-        "Aplica PCA y SVD por separado a los canales rojo, verde y azul. Compara reconstrucción, diferencia visual, error y energía conservada.",
-    )
-    uploaded_file = st.file_uploader("Sube una imagen PNG o JPG", type=["png", "jpg", "jpeg"], help="La imagen se procesa localmente dentro de la sesión.")
+    render_hero("PCA · SVD", "Reducción y reconstrucción RGB", "Explora el detalle que conserva cada método.")
+    uploaded_file = st.file_uploader("Sube una imagen PNG o JPG", type=["png", "jpg", "jpeg"], help="Se reconstruyen los tres canales RGB; los colores y detalles pueden variar.")
     if uploaded_file is None:
-        st.info("Sube una imagen para iniciar la comparación PCA vs. SVD. Las imágenes grandes se ajustan a un máximo de 360 px por lado para que la demostración sea ágil.")
+        st.session_state.pop("image_workspace", None)
+        st.info("Sube una imagen para comparar el original y su reconstrucción.")
         return
-
-    try:
-        image = Image.open(uploaded_file).convert("RGB")
-        image.thumbnail((360, 360), Image.Resampling.LANCZOS)
-        image_array = np.asarray(image)
-    except Exception as error:
-        st.error(f"No se pudo abrir la imagen: {error}")
-        return
-
-    height, width, _ = image_array.shape
-    controls, output = st.columns([0.78, 1.55], gap="large")
-    with controls:
-        st.markdown("<div class='section-kicker'>AJUSTE RGB</div>", unsafe_allow_html=True)
-        st.subheader("Elige el detalle")
-        maximum = min(height, width)
-        default = max(1, min(maximum, round(maximum * 0.12)))
-        components = st.slider("Componentes principales (k)", 1, maximum, default)
-        st.image(image, caption=f"Original · {width} × {height} px", width="stretch")
-        st.caption("A menor k, mayor compresión y menor fidelidad. PCA centra cada canal; SVD calcula directamente una aproximación de rango k.")
-
-    with output:
-        with st.spinner("Calculando PCA y SVD en los tres canales de color…"):
-            pca_result = compress_rgb_with_pca(image_array, components)
-            svd_result = compress_rgb_with_svd(image_array, components)
-
-        pca_tab, svd_tab, comparison_tab = st.tabs(["PCA por canal RGB", "SVD de rango k", "PCA vs. SVD"])
-        with pca_tab:
-            render_color_result(image_array, pca_result, "PCA", components)
-            st.caption("PCA encuentra las direcciones de máxima varianza después de centrar cada canal RGB. “Energía retenida” corresponde a la varianza explicada ponderada de los tres canales.")
-        with svd_tab:
-            render_color_result(image_array, svd_result, "SVD", components)
-            st.caption("SVD aproxima directamente cada matriz de color con k valores singulares. Es la aproximación óptima de rango k respecto al error cuadrático para cada canal.")
-        with comparison_tab:
-            comparison = pd.DataFrame(
-                [
-                    {"Método": "PCA por canal RGB", "Energía retenida": f"{pca_result['retained_variance'] * 100:.2f}%", "MSE": f"{pca_result['mse']:.2f}", "PSNR": "∞" if np.isinf(pca_result["psnr"]) else f"{pca_result['psnr']:.2f} dB", "Datos del modelo": f"{pca_result['storage_ratio']:.1f}%"},
-                    {"Método": "SVD de rango k", "Energía retenida": f"{svd_result['retained_variance'] * 100:.2f}%", "MSE": f"{svd_result['mse']:.2f}", "PSNR": "∞" if np.isinf(svd_result["psnr"]) else f"{svd_result['psnr']:.2f} dB", "Datos del modelo": f"{svd_result['storage_ratio']:.1f}%"},
-                ]
-            )
-            st.dataframe(comparison, width="stretch", hide_index=True)
-            st.markdown("#### Cómo explicarlo")
-            st.write("PCA descompone la varianza de datos centrados; SVD factoriza la matriz original. Ambas reducen dimensionalidad y usan componentes ordenados por importancia. En imágenes, SVD suele minimizar el error de una aproximación de rango fijo, mientras PCA conecta directamente con la covarianza y los eigenvectores.")
-        if pca_result["total_variance"] < 1e-12:
-            st.info("La imagen no tiene variación tonal; cualquier número de componentes produce la misma reconstrucción.")
+    resolution = st.selectbox("Resolución de procesamiento", ["Vista previa · 720 px", "Vista previa · 360 px", "Resolución original"], help="La vista previa reduce ambos lados por igual, sin recortar. La resolución original requiere más tiempo y memoria.")
+    limit = {"Vista previa · 720 px": 720, "Vista previa · 360 px": 360, "Resolución original": None}[resolution]
+    raw = uploaded_file.getvalue()
+    identity = (sha256(raw).hexdigest(), limit)
+    entry = st.session_state.get("image_workspace")
+    if entry is None or entry["identity"] != identity:
+        # Release the previous image's factors before allocating a new workspace.
+        st.session_state.pop("image_workspace", None)
+        entry = None
+        try:
+            image = ImageOps.exif_transpose(Image.open(BytesIO(raw))).convert("RGB")
+            source_size = image.size
+            workspace = ImageWorkspace(preview_image(image, limit))
+        except (ValueError, OSError, Image.DecompressionBombError) as error:
+            st.error(f"No se pudo abrir la imagen: {error}")
+            return
+        entry = {"identity": identity, "workspace": workspace, "source_size": source_size,
+                 "original_url": png_url(workspace.image), "html_key": None, "html": None}
+        st.session_state.image_workspace = entry
+    workspace = entry["workspace"]
+    image_array = workspace.image
+    height, width = image_array.shape[:2]
+    source_width, source_height = entry["source_size"]
+    st.caption(f"Archivo: {source_width} × {source_height} px · Comparación y descarga: {width} × {height} px · RGB con pérdida · Encuadre completo")
+    # A radio selection gates Python execution; inactive views do no work.
+    view = st.radio("Método", ["PCA RGB", "SVD rango k", "PCA vs. SVD"], horizontal=True)
+    maximum = min(height, width)
+    rank_key = "image_rank"
+    if rank_key not in st.session_state:
+        st.session_state[rank_key] = max(1, round(maximum * 0.12))
+    st.session_state[rank_key] = min(maximum, max(1, st.session_state[rank_key]))
+    components = st.slider("Componentes / rango (k)", 1, maximum, key=rank_key, help="Menor k reduce los datos del modelo y el detalle. La descomposición se reutiliza al cambiar k.")
+    methods = ["PCA", "SVD"] if view == "PCA vs. SVD" else ["PCA" if view == "PCA RGB" else "SVD"]
+    with st.spinner("Preparando reconstrucción RGB…"):
+        results = {method: workspace.reconstruct(method, components) for method in methods}
+    if len(methods) == 1:
+        method = methods[0]
+        render_image_metrics(results[method], method)
+        reference = f"Original vs. {method}"
+    else:
+        st.dataframe(pd.DataFrame([
+            {"Método": method, "MSE": result["mse"], "PSNR (dB)": result["psnr"], "Datos del modelo (%)": result["storage_ratio"]}
+            for method, result in results.items()
+        ]).round(2), width="stretch", hide_index=True)
+        reference = st.selectbox("Comparar", ["Original vs. PCA", "Original vs. SVD", "PCA vs. SVD"])
+    right_method = "PCA" if reference == "Original vs. PCA" else "SVD"
+    left = results["PCA"]["reconstructed_image"] if reference == "PCA vs. SVD" else image_array
+    html_key = (reference, components)
+    if entry["html_key"] != html_key:
+        # Only one inspector payload survives a rerun; never cache each visited k.
+        entry["html"] = None
+        left_url = ("data:image/png;base64," + b64encode(result_png(results["PCA"])).decode("ascii")) if reference == "PCA vs. SVD" else entry["original_url"]
+        right_url = "data:image/png;base64," + b64encode(result_png(results[right_method])).decode("ascii")
+        entry["html"] = comparison_html(left, results[right_method]["reconstructed_image"], reference, components,
+                                        "rgb-inspector", "Reconstrucción PCA" if reference == "PCA vs. SVD" else "Original",
+                                        original_url=left_url, reconstructed_url=right_url)
+        entry["html_key"] = html_key
+    render_comparison_html(entry["html"])
+    for method, result in results.items():
+        st.download_button(f"Descargar reconstrucción {method}", data=result_png(result),
+                           file_name=f"{method.lower()}_rgb_{width}x{height}_k{components}.png", mime="image/png")
+    with st.expander("Cómo leer la comparación"):
+        st.markdown("**PCA** centra cada canal; su retención mide varianza. **SVD** aproxima cada canal con rango k; su retención mide energía. Estas medidas no son equivalentes.")
+        st.markdown("**Diferencia** muestra el error absoluto por canal; **×4** lo amplifica y limita a 255. Negro indica coincidencia. En PCA vs. SVD, el mapa compara ambas reconstrucciones.")
+        st.caption("Datos del modelo cuenta valores numéricos respecto a los píxeles RGB; no representa el tamaño del PNG. La vista previa y su descarga usan la resolución indicada. Selecciona Resolución original para procesar todos los píxeles.")
 
 
 inject_styles()
