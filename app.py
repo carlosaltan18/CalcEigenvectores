@@ -12,7 +12,7 @@ import streamlit as st
 from PIL import Image
 
 from eigen_solver import EigenSolver
-from pca_tools import fit_pca, image_pca
+from pca_tools import color_image_pca, color_image_svd, fit_pca
 from ui_components import format_number, load_matrix, render_matrix_input, render_results, render_steps
 
 
@@ -23,8 +23,9 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        :root { --ink: #15213a; --muted: #64748b; --violet: #7c3aed; --cyan: #0891b2; }
-        .stApp { background: radial-gradient(circle at 10% -10%, #e9ddff 0, transparent 32rem), #f8fafc; color: var(--ink); }
+        :root { --ink: #0f172a; --muted: #475569; --violet: #6d28d9; --cyan: #0e7490; }
+        .stApp, [data-testid="stAppViewContainer"] { background: radial-gradient(circle at 10% -10%, #e9ddff 0, transparent 32rem), #f8fafc; color: var(--ink); color-scheme: light; }
+        [data-testid="stMain"] { color: var(--ink); }
         section[data-testid="stSidebar"] { background: #111b34; }
         section[data-testid="stSidebar"] * { color: #e8efff; }
         section[data-testid="stSidebar"] .stRadio label { padding: .35rem 0; }
@@ -39,11 +40,23 @@ def inject_styles() -> None:
         .status-badge { display: inline-block; padding: .35rem .65rem; background: #eef2ff; border: 1px solid #dbeafe; border-radius: 999px; color: #3730a3; font-size: .82rem; font-weight: 650; margin: 0 .35rem .65rem 0; }
         .eigen-card { background: linear-gradient(135deg, #f5f3ff, #ecfeff); border: 1px solid #ddd6fe; border-radius: 12px; padding: .75rem .8rem; color: #312e81; }
         .eigen-card span { color: #64748b; font-size: .8rem; }
-        div[data-testid="stMetric"] { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: .6rem .8rem; box-shadow: 0 3px 12px rgba(15, 23, 42, .04); }
+        div[data-testid="stMetric"] { background: #ffffff; border: 1px solid #dbe3ef; border-radius: 14px; padding: .6rem .8rem; box-shadow: 0 3px 12px rgba(15, 23, 42, .04); }
+        [data-testid="stMain"] [data-testid="stMetricLabel"], [data-testid="stMain"] [data-testid="stMetricLabel"] *, [data-testid="stMain"] [data-testid="stMetricDelta"] { color: #475569 !important; }
+        [data-testid="stMain"] [data-testid="stMetricValue"], [data-testid="stMain"] [data-testid="stMetricValue"] * { color: #0f172a !important; }
+        [data-testid="stMain"] label, [data-testid="stMain"] label p, [data-testid="stMain"] [data-testid="stWidgetLabel"], [data-testid="stMain"] [data-testid="stWidgetLabel"] p, [data-testid="stMain"] .stCaption, [data-testid="stMain"] .stCaption p { color: #334155 !important; font-weight: 600; }
+        [data-testid="stMain"] input, [data-testid="stMain"] textarea { color: #0f172a !important; caret-color: #0f172a !important; }
+        [data-testid="stMain"] [data-baseweb="input"], [data-testid="stMain"] [data-baseweb="textarea"] { background: #ffffff !important; border-color: #cbd5e1 !important; }
+        [data-testid="stMain"] [data-baseweb="textarea"] textarea { background: transparent !important; color: #0f172a !important; }
+        [data-testid="stMain"] [data-baseweb="slider"] div { color: #334155; }
+        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] { background: #ffffff !important; border: 1px dashed #94a3b8 !important; }
+        [data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color: #334155 !important; }
+        [data-testid="stMain"] [data-testid="stFileUploader"] small { color: #64748b !important; }
         .tip-box { background: #eff6ff; border-left: 4px solid #0ea5e9; padding: .8rem 1rem; border-radius: 0 10px 10px 0; color: #1e3a5f; }
         .footer-note { color: #64748b; font-size: .85rem; text-align: center; padding-top: 1.5rem; }
         div[data-testid="stExpander"] { background: white; border: 1px solid #e2e8f0; border-radius: 12px; }
         .stButton > button, .stDownloadButton > button { border-radius: 10px; font-weight: 650; }
+        [data-testid="stMain"] [role="tab"] { color: #334155 !important; font-weight: 650; }
+        [data-testid="stMain"] [role="tab"][aria-selected="true"] { color: #5b21b6 !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -168,6 +181,17 @@ def parse_csv_data(raw_data: str) -> np.ndarray:
     return data
 
 
+def load_uploaded_csv(uploaded_file) -> Tuple[np.ndarray, List[str], int]:
+    """Carga un CSV con encabezados y conserva únicamente columnas numéricas útiles."""
+    frame = pd.read_csv(uploaded_file)
+    numeric = frame.select_dtypes(include=[np.number]).dropna(axis=0, how="any")
+    if numeric.shape[1] < 2:
+        raise ValueError("El archivo necesita al menos dos columnas numéricas con encabezados.")
+    if numeric.shape[0] < 2:
+        raise ValueError("El archivo necesita al menos dos filas numéricas completas.")
+    return numeric.to_numpy(dtype=float), numeric.columns.astype(str).tolist(), len(frame) - len(numeric)
+
+
 def render_scree_plot(explained_ratio: np.ndarray) -> None:
     positions = list(range(1, len(explained_ratio) + 1))
     figure = go.Figure()
@@ -175,6 +199,7 @@ def render_scree_plot(explained_ratio: np.ndarray) -> None:
     figure.add_trace(go.Scatter(x=positions, y=np.cumsum(explained_ratio) * 100, mode="lines+markers", line={"color": "#0891b2", "width": 3}, name="Acumulada"))
     figure.update_layout(
         height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff",
+        template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"},
         xaxis_title="Componente principal", yaxis_title="Varianza explicada (%)", yaxis={"range": [0, 105], "gridcolor": "#e2e8f0"}, legend={"orientation": "h", "y": 1.12},
     )
     st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
@@ -189,12 +214,12 @@ def render_pca_lab() -> None:
     control, workspace = st.columns([0.78, 1.55], gap="large")
     with control:
         st.markdown("<div class='section-kicker'>DATOS</div>", unsafe_allow_html=True)
-        source = st.radio("Fuente", ["Dataset de ejemplo", "Pegar CSV"], label_visibility="collapsed")
+        source = st.radio("Fuente", ["Dataset de ejemplo", "Pegar datos", "Subir CSV"], label_visibility="collapsed")
         if source == "Dataset de ejemplo":
             dataset_name = st.selectbox("Dataset", ["Nube correlacionada (2 variables)", "Mediciones de estudiantes (4 variables)", "Anillo tridimensional"])
             data, labels = demo_dataset(dataset_name)
             st.caption(f"{data.shape[0]} observaciones · {data.shape[1]} variables")
-        else:
+        elif source == "Pegar datos":
             raw_data = st.text_area(
                 "Observaciones por fila, variables separadas por comas",
                 value="1.0, 2.1, 1.4\n2.0, 4.1, 2.6\n3.1, 6.2, 3.8\n4.0, 8.0, 5.3\n5.2, 10.4, 6.4",
@@ -207,10 +232,25 @@ def render_pca_lab() -> None:
             except ValueError as error:
                 st.error(str(error))
                 return
+        else:
+            uploaded_csv = st.file_uploader("Archivo CSV con encabezados", type=["csv"], help="La aplicación usará las columnas numéricas y omitirá filas incompletas.")
+            if uploaded_csv is None:
+                st.info("Sube un CSV con encabezados, por ejemplo: edad,ingreso,puntaje.")
+                return
+            try:
+                data, labels, discarded_rows = load_uploaded_csv(uploaded_csv)
+                st.caption(f"{data.shape[0]} observaciones · {data.shape[1]} variables numéricas")
+                if discarded_rows:
+                    st.caption(f"Se omitieron {discarded_rows} fila(s) con datos faltantes.")
+            except (ValueError, pd.errors.ParserError) as error:
+                st.error(f"No se pudo leer el CSV: {error}")
+                return
 
         max_components = min(data.shape)
         components = st.slider("Componentes a conservar", 1, max_components, min(2, max_components))
         standardize = st.checkbox("Estandarizar variables", value=True, help="Convierte cada variable a una escala comparable antes de PCA.")
+        available_views = ["2D"] + (["3D"] if data.shape[1] >= 3 else [])
+        projection_view = st.selectbox("Visualizar reducción", available_views, help="La vista 3D utiliza PC1, PC2 y PC3.")
         st.markdown(
             "<div class='tip-box'><b>Decisión importante:</b> estandariza cuando las variables usan unidades o escalas diferentes.</div>",
             unsafe_allow_html=True,
@@ -237,14 +277,28 @@ def render_pca_lab() -> None:
             render_scree_plot(result["explained_ratio"])
         with scatter_column:
             st.markdown("#### Datos proyectados")
-            scores = result["scores"]
-            if scores.shape[1] >= 2:
+            scores = result["all_scores"]
+            if projection_view == "3D":
+                figure = go.Figure(
+                    go.Scatter3d(
+                        x=scores[:, 0], y=scores[:, 1], z=scores[:, 2], mode="markers",
+                        marker={"color": "#7c3aed", "size": 5, "opacity": .78},
+                        text=[f"Observación {index + 1}" for index in range(len(scores))],
+                    )
+                )
+                figure.update_layout(
+                    height=330, margin={"l": 0, "r": 0, "t": 25, "b": 0}, paper_bgcolor="rgba(0,0,0,0)",
+                    template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"},
+                    scene={"xaxis_title": "PC1", "yaxis_title": "PC2", "zaxis_title": "PC3"},
+                )
+            elif scores.shape[1] >= 2:
                 figure = go.Figure(go.Scatter(x=scores[:, 0], y=scores[:, 1], mode="markers", marker={"color": "#7c3aed", "size": 9, "opacity": .78}, text=[f"Observación {index + 1}" for index in range(len(scores))]))
                 x_title, y_title = "PC1", "PC2"
             else:
                 figure = go.Figure(go.Scatter(x=np.arange(1, len(scores) + 1), y=scores[:, 0], mode="markers", marker={"color": "#7c3aed", "size": 9, "opacity": .78}))
                 x_title, y_title = "Observación", "PC1"
-            figure.update_layout(height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff", xaxis_title=x_title, yaxis_title=y_title)
+            if projection_view != "3D":
+                figure.update_layout(height=330, margin={"l": 10, "r": 10, "t": 25, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff", template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"}, xaxis_title=x_title, yaxis_title=y_title)
             st.plotly_chart(figure, width="stretch", config={"displayModeBar": False})
 
         data_tab, covariance_tab, components_tab = st.tabs(["Datos", "Covarianza", "Componentes"])
@@ -253,7 +307,7 @@ def render_pca_lab() -> None:
         with covariance_tab:
             covariance = result["covariance"]
             heatmap = go.Figure(go.Heatmap(z=covariance, x=labels, y=labels, colorscale="PuBu", zmid=0, colorbar={"title": "Cov."}))
-            heatmap.update_layout(height=360, margin={"l": 10, "r": 10, "t": 15, "b": 10}, paper_bgcolor="rgba(0,0,0,0)")
+            heatmap.update_layout(height=360, margin={"l": 10, "r": 10, "t": 15, "b": 10}, paper_bgcolor="rgba(0,0,0,0)", template="plotly_white", font={"color": "#0f172a", "family": "Arial, sans-serif"})
             st.plotly_chart(heatmap, width="stretch", config={"displayModeBar": False})
         with components_tab:
             loading_data = {f"PC{index + 1}": result["components"][:, index] for index in range(components)}
@@ -268,57 +322,95 @@ def image_to_bytes(image_array: np.ndarray) -> bytes:
     return buffer.getvalue()
 
 
+@st.cache_data(show_spinner=False)
+def compress_rgb_with_pca(image_array: np.ndarray, components: int):
+    return color_image_pca(image_array, components)
+
+
+@st.cache_data(show_spinner=False)
+def compress_rgb_with_svd(image_array: np.ndarray, components: int):
+    return color_image_svd(image_array, components)
+
+
+def render_color_result(original: np.ndarray, result: dict, method: str, components: int) -> None:
+    """Muestra la comparación visual que hace comprensible la compresión."""
+    metrics = st.columns(4)
+    metrics[0].metric("Energía retenida", f"{result['retained_variance'] * 100:.2f}%")
+    metrics[1].metric("Error MSE", f"{result['mse']:.2f}")
+    metrics[2].metric("PSNR", "∞" if np.isinf(result["psnr"]) else f"{result['psnr']:.2f} dB")
+    metrics[3].metric("Datos del modelo", f"{result['storage_ratio']:.1f}%")
+
+    original_column, reconstructed_column, difference_column = st.columns(3)
+    with original_column:
+        st.image(original, caption="Original RGB", width="stretch")
+    with reconstructed_column:
+        st.image(result["reconstructed_image"], caption=f"Reconstrucción {method} · k={components}", width="stretch")
+    with difference_column:
+        st.image(result["difference_image"], caption="Diferencia absoluta × 4", width="stretch")
+
+    st.download_button(
+        f"Descargar reconstrucción {method}",
+        data=image_to_bytes(result["reconstructed_image"]),
+        file_name=f"{method.lower()}_rgb_k{components}.png",
+        mime="image/png",
+        width="stretch",
+    )
+
+
 def render_image_compressor() -> None:
     render_hero(
-        "PCA Y VISIÓN POR COMPUTADORA",
-        "Comprime imágenes con componentes principales.",
-        "Convierte una imagen a escala de grises, conserva las direcciones que explican más varianza y compara calidad, error y tamaño relativo.",
+        "PCA, SVD Y VISIÓN POR COMPUTADORA",
+        "Comprime imágenes RGB sin perder el color.",
+        "Aplica PCA y SVD por separado a los canales rojo, verde y azul. Compara reconstrucción, diferencia visual, error y energía conservada.",
     )
     uploaded_file = st.file_uploader("Sube una imagen PNG o JPG", type=["png", "jpg", "jpeg"], help="La imagen se procesa localmente dentro de la sesión.")
     if uploaded_file is None:
-        st.info("Sube una imagen para iniciar la compresión PCA. Las imágenes grandes se ajustan a un máximo de 480 px por lado para mantener el análisis ágil.")
+        st.info("Sube una imagen para iniciar la comparación PCA vs. SVD. Las imágenes grandes se ajustan a un máximo de 360 px por lado para que la demostración sea ágil.")
         return
 
     try:
-        image = Image.open(uploaded_file).convert("L")
-        image.thumbnail((480, 480), Image.Resampling.LANCZOS)
+        image = Image.open(uploaded_file).convert("RGB")
+        image.thumbnail((360, 360), Image.Resampling.LANCZOS)
         image_array = np.asarray(image)
     except Exception as error:
         st.error(f"No se pudo abrir la imagen: {error}")
         return
 
-    height, width = image_array.shape
+    height, width, _ = image_array.shape
     controls, output = st.columns([0.78, 1.55], gap="large")
     with controls:
-        st.markdown("<div class='section-kicker'>AJUSTE DE COMPRESIÓN</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-kicker'>AJUSTE RGB</div>", unsafe_allow_html=True)
         st.subheader("Elige el detalle")
         maximum = min(height, width)
         default = max(1, min(maximum, round(maximum * 0.12)))
         components = st.slider("Componentes principales (k)", 1, maximum, default)
         st.image(image, caption=f"Original · {width} × {height} px", width="stretch")
-        st.caption("A menor k, mayor compresión y menor fidelidad. Ajusta el deslizador para observar el equilibrio.")
+        st.caption("A menor k, mayor compresión y menor fidelidad. PCA centra cada canal; SVD calcula directamente una aproximación de rango k.")
 
     with output:
-        with st.spinner("Calculando covarianza, eigenvectores y reconstrucción…"):
-            result = image_pca(image_array, components)
-        reconstructed = result["reconstructed_image"]
-        metrics = st.columns(4)
-        metrics[0].metric("Varianza", f"{result['cumulative_ratio'][components - 1] * 100:.2f}%")
-        metrics[1].metric("Error MSE", f"{result['mse']:.2f}")
-        metrics[2].metric("PSNR", "∞" if np.isinf(result["psnr"]) else f"{result['psnr']:.2f} dB")
-        metrics[3].metric("Datos PCA", f"{result['storage_ratio']:.1f}%")
-        st.image(reconstructed, caption=f"Reconstrucción con {components} componentes", width="stretch")
-        st.download_button(
-            "Descargar reconstrucción PNG",
-            data=image_to_bytes(reconstructed),
-            file_name=f"pca_k{components}.png",
-            mime="image/png",
-            width="stretch",
-        )
-        if result["total_variance"] < 1e-12:
+        with st.spinner("Calculando PCA y SVD en los tres canales de color…"):
+            pca_result = compress_rgb_with_pca(image_array, components)
+            svd_result = compress_rgb_with_svd(image_array, components)
+
+        pca_tab, svd_tab, comparison_tab = st.tabs(["PCA por canal RGB", "SVD de rango k", "PCA vs. SVD"])
+        with pca_tab:
+            render_color_result(image_array, pca_result, "PCA", components)
+            st.caption("PCA encuentra las direcciones de máxima varianza después de centrar cada canal RGB. “Energía retenida” corresponde a la varianza explicada ponderada de los tres canales.")
+        with svd_tab:
+            render_color_result(image_array, svd_result, "SVD", components)
+            st.caption("SVD aproxima directamente cada matriz de color con k valores singulares. Es la aproximación óptima de rango k respecto al error cuadrático para cada canal.")
+        with comparison_tab:
+            comparison = pd.DataFrame(
+                [
+                    {"Método": "PCA por canal RGB", "Energía retenida": f"{pca_result['retained_variance'] * 100:.2f}%", "MSE": f"{pca_result['mse']:.2f}", "PSNR": "∞" if np.isinf(pca_result["psnr"]) else f"{pca_result['psnr']:.2f} dB", "Datos del modelo": f"{pca_result['storage_ratio']:.1f}%"},
+                    {"Método": "SVD de rango k", "Energía retenida": f"{svd_result['retained_variance'] * 100:.2f}%", "MSE": f"{svd_result['mse']:.2f}", "PSNR": "∞" if np.isinf(svd_result["psnr"]) else f"{svd_result['psnr']:.2f} dB", "Datos del modelo": f"{svd_result['storage_ratio']:.1f}%"},
+                ]
+            )
+            st.dataframe(comparison, width="stretch", hide_index=True)
+            st.markdown("#### Cómo explicarlo")
+            st.write("PCA descompone la varianza de datos centrados; SVD factoriza la matriz original. Ambas reducen dimensionalidad y usan componentes ordenados por importancia. En imágenes, SVD suele minimizar el error de una aproximación de rango fijo, mientras PCA conecta directamente con la covarianza y los eigenvectores.")
+        if pca_result["total_variance"] < 1e-12:
             st.info("La imagen no tiene variación tonal; cualquier número de componentes produce la misma reconstrucción.")
-        else:
-            st.caption("“Datos PCA” estima los valores que habría que almacenar para componentes, proyecciones y media, comparados con los píxeles originales; no representa necesariamente el tamaño final de un archivo PNG/JPG.")
 
 
 inject_styles()

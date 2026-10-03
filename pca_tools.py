@@ -54,6 +54,7 @@ def fit_pca(data: np.ndarray, n_components: int, standardize: bool = False) -> D
         "eigenvectors": eigenvectors,
         "components": components,
         "scores": scores,
+        "all_scores": centered @ eigenvectors,
         "reconstructed": reconstructed,
         "explained_ratio": explained_ratio,
         "cumulative_ratio": np.cumsum(explained_ratio),
@@ -80,3 +81,75 @@ def image_pca(image: np.ndarray, n_components: int) -> Dict[str, Any]:
         }
     )
     return result
+
+
+def _quality_metrics(original: np.ndarray, reconstructed: np.ndarray) -> Dict[str, Any]:
+    """Calcula métricas compartidas y un mapa de diferencias visible."""
+    difference = np.abs(original.astype(float) - reconstructed.astype(float))
+    mse = float(np.mean(difference**2))
+    psnr = float("inf") if mse < 1e-12 else 20 * np.log10(255.0 / np.sqrt(mse))
+    return {
+        "mse": mse,
+        "psnr": psnr,
+        "difference_image": np.clip(difference * 4, 0, 255).astype(np.uint8),
+    }
+
+
+def color_image_pca(image: np.ndarray, n_components: int) -> Dict[str, Any]:
+    """Aplica PCA independiente a R, G y B y reúne sus métricas."""
+    values = np.asarray(image)
+    if values.ndim != 3 or values.shape[2] != 3:
+        raise ValueError("La imagen debe tener tres canales RGB.")
+
+    channels = [image_pca(values[:, :, channel], n_components) for channel in range(3)]
+    reconstructed = np.stack([channel["reconstructed_image"] for channel in channels], axis=2)
+    variances = np.array([channel["total_variance"] for channel in channels], dtype=float)
+    retained = np.array(
+        [channel["cumulative_ratio"][n_components - 1] for channel in channels], dtype=float
+    )
+    total_variance = float(variances.sum())
+    weighted_retained = float(np.average(retained, weights=variances)) if total_variance > 1e-12 else 0.0
+    metrics = _quality_metrics(values, reconstructed)
+
+    return {
+        "reconstructed_image": reconstructed,
+        "channels": channels,
+        "retained_variance": weighted_retained,
+        "total_variance": total_variance,
+        "storage_ratio": float(np.mean([channel["storage_ratio"] for channel in channels])),
+        **metrics,
+    }
+
+
+def color_image_svd(image: np.ndarray, n_components: int) -> Dict[str, Any]:
+    """Reconstruye cada canal RGB con una aproximación SVD de rango k."""
+    values = np.asarray(image)
+    if values.ndim != 3 or values.shape[2] != 3:
+        raise ValueError("La imagen debe tener tres canales RGB.")
+
+    height, width, _ = values.shape
+    reconstructions = []
+    retained_energy = []
+    energies = []
+    for channel in range(3):
+        source = values[:, :, channel].astype(float)
+        u_matrix, singular_values, vt_matrix = np.linalg.svd(source, full_matrices=False)
+        reconstruction = (u_matrix[:, :n_components] * singular_values[:n_components]) @ vt_matrix[:n_components, :]
+        reconstructions.append(np.clip(reconstruction, 0, 255).astype(np.uint8))
+        total_energy = float(np.sum(singular_values**2))
+        energies.append(total_energy)
+        retained_energy.append(float(np.sum(singular_values[:n_components] ** 2) / total_energy) if total_energy > 1e-12 else 0.0)
+
+    reconstructed = np.stack(reconstructions, axis=2)
+    total_energy = float(np.sum(energies))
+    weighted_retained = float(np.average(retained_energy, weights=energies)) if total_energy > 1e-12 else 0.0
+    stored_values = height * n_components + n_components + n_components * width
+    metrics = _quality_metrics(values, reconstructed)
+
+    return {
+        "reconstructed_image": reconstructed,
+        "retained_variance": weighted_retained,
+        "total_variance": total_energy,
+        "storage_ratio": 100 * stored_values / (height * width),
+        **metrics,
+    }

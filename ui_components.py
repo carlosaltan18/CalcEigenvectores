@@ -178,6 +178,8 @@ def _plot_eigenvectors_2d(eigenvalues: np.ndarray, eigenvectors: np.ndarray, mat
         height=390,
         margin={"l": 10, "r": 10, "t": 25, "b": 10},
         legend={"orientation": "h", "y": 1.08},
+        template="plotly_white",
+        font={"color": "#0f172a", "family": "Arial, sans-serif"},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f8fafc",
         xaxis={"title": "x₁", "range": [-limit, limit], "zeroline": True, "gridcolor": "#e2e8f0"},
